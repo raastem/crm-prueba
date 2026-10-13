@@ -1,0 +1,1462 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full antialiased font-sans">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contactos | CRM RaaS Prototipo</title>
+  <meta name="description" content="Tu espacio de trabajo para contactos, empresas, oportunidades y tareas.">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Icons & Supabase JS SDK -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          },
+          colors: {
+            border: '#e4e4e7',
+            background: '#ffffff',
+            foreground: '#09090b',
+            sidebar: '#f8f8f9',
+            muted: {
+              DEFAULT: '#f4f4f5',
+              foreground: '#71717a'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Recreación exacta de las líneas divisorias de tabla y primera columna fija del código original */
+    .crm-table tr > :not(:last-child)::after {
+      content: "";
+      pointer-events: none;
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      right: 0;
+      width: 1px;
+      background-color: #e4e4e7;
+    }
+    .crm-table tr > :first-child {
+      position: sticky;
+      left: 0;
+      z-index: 10;
+      background-color: inherit;
+    }
+    /* Scrollbars limpias */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #d4d4d8;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #a1a1aa;
+    }
+  </style>
+</head>
+
+<body class="min-h-full flex flex-col bg-sidebar text-foreground selection:bg-zinc-900 selection:text-white">
+  <div data-slot="sidebar-wrapper" class="flex min-h-svh w-full h-svh overflow-hidden">
+    
+    <!-- Mobile Backdrop -->
+    <div id="mobile-backdrop" onclick="toggleMobileSidebar()" class="fixed inset-0 z-30 bg-black/30 backdrop-blur-[1px] hidden md:hidden"></div>
+
+    <!-- AppSidebar (CRM RaaS Prototipo) -->
+    <aside id="app-sidebar" class="fixed md:static inset-y-0 left-0 z-40 w-64 bg-sidebar flex flex-col justify-between shrink-0 transition-all duration-200 -translate-x-full md:translate-x-0 select-none">
+      <div class="p-3 space-y-5 flex-1 overflow-y-auto">
+        
+        <!-- Selector de Espacio de Trabajo -->
+        <div class="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-zinc-200/60 transition-colors cursor-pointer" onclick="openDbModal()">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="size-6 rounded-md bg-zinc-900 text-white flex items-center justify-center text-xs font-semibold shrink-0 shadow-xs">R</div>
+            <div class="truncate">
+              <p class="text-sm font-semibold leading-none truncate">CRM RaaS</p>
+              <p class="text-[11px] text-muted-foreground mt-0.5 truncate">Prototipo</p>
+            </div>
+          </div>
+          <i data-lucide="chevrons-up-down" class="size-3.5 text-muted-foreground shrink-0"></i>
+        </div>
+
+        <!-- Búsqueda Rápida / Comando -->
+        <div class="px-1">
+          <button onclick="focusGlobalSearch()" class="w-full flex items-center justify-between px-2.5 py-1.5 text-xs text-muted-foreground bg-white border border-border rounded-md shadow-2xs hover:border-zinc-300 transition-colors">
+            <span class="flex items-center gap-2">
+              <i data-lucide="search" class="size-3.5"></i>
+              <span>Búsqueda rápida...</span>
+            </span>
+            <kbd class="text-[10px] font-mono bg-muted px-1.5 py-0.5 rounded border border-border">/</kbd>
+          </button>
+        </div>
+
+        <!-- Navegación de Registros -->
+        <div class="space-y-1">
+          <div class="px-2.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Registros</div>
+          <nav class="space-y-0.5 text-sm">
+            <button onclick="switchView('contacts')" id="nav-contacts" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md font-medium transition-colors">
+              <i data-lucide="users" class="size-4 shrink-0"></i>
+              <span>Contactos</span>
+              <span id="badge-contacts" class="ml-auto text-xs text-muted-foreground font-normal">0</span>
+            </button>
+            <button onclick="switchView('companies')" id="nav-companies" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md font-medium transition-colors">
+              <i data-lucide="building-2" class="size-4 shrink-0"></i>
+              <span>Empresas</span>
+              <span id="badge-companies" class="ml-auto text-xs text-muted-foreground font-normal">0</span>
+            </button>
+            <button onclick="switchView('opportunities')" id="nav-opportunities" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md font-medium transition-colors">
+              <i data-lucide="kanban" class="size-4 shrink-0"></i>
+              <span>Oportunidades</span>
+              <span id="badge-opportunities" class="ml-auto text-xs text-muted-foreground font-normal">0</span>
+            </button>
+            <button onclick="switchView('tasks')" id="nav-tasks" class="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md font-medium transition-colors">
+              <i data-lucide="check-square" class="size-4 shrink-0"></i>
+              <span>Tareas</span>
+              <span id="badge-tasks" class="ml-auto text-xs text-muted-foreground font-normal">0</span>
+            </button>
+          </nav>
+        </div>
+
+        <!-- Listas Inteligentes -->
+        <div class="space-y-1 pt-2">
+          <div class="px-2.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Listas Inteligentes</div>
+          <div class="space-y-0.5 text-xs">
+            <button onclick="applyQuickFilter('Directivos')" class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-muted-foreground hover:bg-zinc-200/50 hover:text-foreground transition-colors">
+              <span class="size-2 rounded-full bg-blue-500"></span>
+              <span class="truncate">Ejecutivos y Directivos</span>
+            </button>
+            <button onclick="applyQuickFilter('Tecnología')" class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-muted-foreground hover:bg-zinc-200/50 hover:text-foreground transition-colors">
+              <span class="size-2 rounded-full bg-purple-500"></span>
+              <span class="truncate">Líderes de TI y Seguridad</span>
+            </button>
+            <button onclick="applyQuickFilter('ALL')" class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-muted-foreground hover:bg-zinc-200/50 hover:text-foreground transition-colors">
+              <span class="size-2 rounded-full bg-zinc-400"></span>
+              <span class="truncate">Todos los Contactos</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Conexión a Base de Datos y Perfil de Usuario -->
+      <div class="p-3 border-t border-border space-y-2.5 bg-sidebar">
+        <button onclick="openDbModal()" class="w-full flex items-center justify-between px-2.5 py-2 rounded-lg border border-border bg-white hover:bg-zinc-50 transition-colors shadow-2xs text-left">
+          <div class="flex items-center gap-2 min-w-0">
+            <span id="db-status-dot" class="size-2 rounded-full bg-emerald-500 shrink-0"></span>
+            <div class="truncate">
+              <p id="db-status-title" class="text-xs font-medium leading-none text-foreground">Base de Datos Local</p>
+              <p id="db-status-sub" class="text-[10px] text-muted-foreground mt-0.5 truncate">Clic para conectar Supabase</p>
+            </div>
+          </div>
+          <i data-lucide="database" class="size-3.5 text-muted-foreground shrink-0"></i>
+        </button>
+
+        <div class="flex items-center justify-between px-1.5 py-1">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="size-7 rounded-full bg-zinc-900 text-white flex items-center justify-center text-xs font-medium shrink-0">AM</div>
+            <div class="truncate">
+              <p class="text-xs font-medium leading-none truncate">Alex Morgan</p>
+              <p class="text-[11px] text-muted-foreground truncate mt-0.5">admin@raas-crm.co</p>
+            </div>
+          </div>
+          <button onclick="resetFactoryData()" title="Restaurar los 20 contactos iniciales" class="text-[11px] text-muted-foreground hover:text-foreground px-1.5 py-1 rounded hover:bg-zinc-200/60 transition-colors">
+            Reiniciar
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Contenedor Principal Inset -->
+    <main data-slot="sidebar-inset" class="relative flex w-full flex-1 flex-col bg-background md:m-2 md:ml-0 md:rounded-2xl md:shadow-sm md:border md:border-border min-h-0 min-w-0 overflow-hidden">
+      
+      <!-- Encabezado de Página -->
+      <header class="group/page-header flex min-h-[calc(2.5rem+1px)] shrink-0 items-center gap-3 border-b border-border px-3 py-1.5 sm:px-6">
+        <div class="flex items-center gap-2 md:hidden">
+          <button type="button" onclick="toggleMobileSidebar()" class="inline-flex size-7 items-center justify-center rounded-md hover:bg-muted text-foreground">
+            <i data-lucide="panel-left" class="size-4"></i>
+            <span class="sr-only">Alternar menú</span>
+          </button>
+          <div class="w-px h-4 bg-border"></div>
+        </div>
+
+        <div class="flex min-w-0 flex-1 items-center justify-between gap-3">
+          <div class="flex min-w-0 items-center gap-2">
+            <i id="header-icon" data-lucide="users" class="size-4 shrink-0 text-muted-foreground"></i>
+            <h1 id="header-title" class="truncate text-sm font-medium">Contactos</h1>
+            <span id="header-subtitle" class="hidden sm:inline-block text-xs text-muted-foreground ml-1"></span>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="openPrimaryModal()" id="primary-action-btn" class="inline-flex shrink-0 items-center justify-center rounded-md border border-border bg-background hover:bg-muted text-foreground text-xs font-medium h-7 gap-1.5 px-3 transition-all active:translate-y-px shadow-2xs">
+              <i data-lucide="plus" class="size-3.5"></i>
+              <span id="primary-action-label">Crear contacto</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Barra de Controles de Colección (Filtro, Búsqueda, Vista) -->
+      <div id="collection-controls" class="flex min-h-11 flex-wrap items-center gap-2 border-b border-border px-4 sm:px-6 py-2 bg-background">
+        
+        <!-- Menú Filtrar -->
+        <div class="relative">
+          <button type="button" onclick="toggleFilterMenu()" class="inline-flex shrink-0 items-center justify-center rounded-md border border-border bg-background hover:bg-muted text-xs font-medium h-7 gap-1.5 px-2.5 transition-colors">
+            <i data-lucide="funnel" class="size-3.5 text-muted-foreground"></i>
+            <span id="active-filter-label">Filtrar</span>
+          </button>
+          <div id="filter-dropdown" class="hidden absolute left-0 mt-1.5 w-60 rounded-lg border border-border bg-background shadow-lg z-30 py-1 text-xs">
+            <div class="px-3 py-1.5 font-semibold text-muted-foreground border-b border-border flex items-center justify-between">
+              <span>Filtrar por Cargo</span>
+              <button onclick="setRoleFilter('')" class="text-[11px] text-zinc-900 hover:underline">Limpiar</button>
+            </div>
+            <div id="filter-options-list" class="max-h-60 overflow-y-auto divide-y divide-zinc-100"></div>
+          </div>
+        </div>
+
+        <!-- Buscador en línea -->
+        <div class="flex items-center rounded-md border border-transparent bg-muted/70 focus-within:bg-background focus-within:border-border h-7 px-2 transition-all w-44 sm:w-64">
+          <i data-lucide="search" class="size-3.5 text-muted-foreground shrink-0"></i>
+          <input id="global-search" oninput="handleSearchInput()" type="text" placeholder="Buscar registros..." class="w-full bg-transparent text-xs px-2 outline-none placeholder:text-muted-foreground">
+          <button id="clear-search-btn" onclick="clearSearch()" class="hidden text-muted-foreground hover:text-foreground">
+            <i data-lucide="x" class="size-3"></i>
+          </button>
+        </div>
+
+        <!-- Controles de Vista y Exportación -->
+        <div class="ml-auto flex items-center gap-2">
+          <div class="relative">
+            <button type="button" onclick="toggleDisplayMenu()" class="inline-flex shrink-0 items-center justify-center rounded-md border border-border bg-background hover:bg-muted text-xs font-medium h-7 gap-1.5 px-2.5 transition-colors">
+              <i data-lucide="settings-2" class="size-3.5 text-muted-foreground"></i>
+              <span>Vista</span>
+            </button>
+            <!-- Popover de Columnas -->
+            <div id="display-dropdown" class="hidden absolute right-0 mt-1.5 w-52 rounded-lg border border-border bg-background shadow-lg z-30 p-3 text-xs space-y-3">
+              <div class="font-semibold text-foreground">Columnas Visibles</div>
+              <div class="space-y-2">
+                <label class="flex items-center justify-between cursor-pointer">
+                  <span class="text-muted-foreground">Correo</span>
+                  <input type="checkbox" checked onchange="toggleColumn('email', this.checked)" class="accent-zinc-900 rounded">
+                </label>
+                <label class="flex items-center justify-between cursor-pointer">
+                  <span class="text-muted-foreground">Teléfono</span>
+                  <input type="checkbox" checked onchange="toggleColumn('phone', this.checked)" class="accent-zinc-900 rounded">
+                </label>
+                <label class="flex items-center justify-between cursor-pointer">
+                  <span class="text-muted-foreground">Cargo</span>
+                  <input type="checkbox" checked onchange="toggleColumn('role', this.checked)" class="accent-zinc-900 rounded">
+                </label>
+                <label class="flex items-center justify-between cursor-pointer">
+                  <span class="text-muted-foreground">Empresa</span>
+                  <input type="checkbox" checked onchange="toggleColumn('company', this.checked)" class="accent-zinc-900 rounded">
+                </label>
+              </div>
+              <div class="pt-2 border-t border-border flex justify-between items-center">
+                <button onclick="exportWorkspaceJSON()" class="w-full py-1.5 px-2 rounded bg-muted hover:bg-zinc-200 font-medium flex items-center justify-center gap-1.5">
+                  <i data-lucide="download" class="size-3.5"></i>
+                  Exportar JSON
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Área de Contenido Principal -->
+      <div id="main-content" class="flex-1 overflow-auto relative">
+        
+        <!-- VISTA 1: TABLA DE CONTACTOS -->
+        <div id="view-contacts" class="w-full">
+          <div class="relative w-full overflow-x-auto">
+            <table class="crm-table w-full min-w-max caption-bottom text-sm border-collapse">
+              <thead class="sticky top-0 z-20 bg-background border-b border-border">
+                <tr class="border-b border-border bg-background">
+                  <th class="relative h-9 px-4 text-left align-middle text-xs font-medium whitespace-nowrap text-muted-foreground group/column">
+                    <div class="flex h-8 items-center gap-2">
+                      <span class="flex size-5 shrink-0 items-center justify-center">
+                        <i data-lucide="align-left" class="size-3.5"></i>
+                      </span>
+                      <button type="button" onclick="sortContacts('name')" class="flex h-full flex-1 items-center justify-between gap-4 text-left outline-none hover:text-foreground">
+                        <span>Nombre</span>
+                        <i data-lucide="arrow-up-down" class="size-3.5 opacity-0 group-hover/column:opacity-100 transition-opacity"></i>
+                      </button>
+                    </div>
+                  </th>
+                  <th id="th-email" class="relative h-9 px-4 text-left align-middle text-xs font-medium whitespace-nowrap text-muted-foreground group/column">
+                    <div class="flex h-8 items-center gap-2">
+                      <span class="flex size-5 shrink-0 items-center justify-center">
+                        <i data-lucide="mail" class="size-3.5"></i>
+                      </span>
+                      <button type="button" onclick="sortContacts('email')" class="flex h-full flex-1 items-center justify-between gap-4 text-left outline-none hover:text-foreground">
+                        <span>Correo electrónico</span>
+                        <i data-lucide="arrow-up-down" class="size-3.5 opacity-0 group-hover/column:opacity-100 transition-opacity"></i>
+                      </button>
+                    </div>
+                  </th>
+                  <th id="th-phone" class="relative h-9 px-4 text-left align-middle text-xs font-medium whitespace-nowrap text-muted-foreground group/column">
+                    <div class="flex h-8 items-center gap-2">
+                      <span class="flex size-5 shrink-0 items-center justify-center">
+                        <i data-lucide="phone" class="size-3.5"></i>
+                      </span>
+                      <button type="button" onclick="sortContacts('phone')" class="flex h-full flex-1 items-center justify-between gap-4 text-left outline-none hover:text-foreground">
+                        <span>Teléfono</span>
+                        <i data-lucide="arrow-up-down" class="size-3.5 opacity-0 group-hover/column:opacity-100 transition-opacity"></i>
+                      </button>
+                    </div>
+                  </th>
+                  <th id="th-role" class="relative h-9 px-4 text-left align-middle text-xs font-medium whitespace-nowrap text-muted-foreground group/column">
+                    <div class="flex h-8 items-center gap-2">
+                      <span class="flex size-5 shrink-0 items-center justify-center">
+                        <i data-lucide="briefcase" class="size-3.5"></i>
+                      </span>
+                      <button type="button" onclick="sortContacts('role')" class="flex h-full flex-1 items-center justify-between gap-4 text-left outline-none hover:text-foreground">
+                        <span>Cargo</span>
+                        <i data-lucide="arrow-up-down" class="size-3.5 opacity-0 group-hover/column:opacity-100 transition-opacity"></i>
+                      </button>
+                    </div>
+                  </th>
+                  <th id="th-company" class="relative h-9 px-4 text-left align-middle text-xs font-medium whitespace-nowrap text-muted-foreground group/column">
+                    <div class="flex h-8 items-center gap-2">
+                      <span class="flex size-5 shrink-0 items-center justify-center">
+                        <i data-lucide="building-2" class="size-3.5"></i>
+                      </span>
+                      <button type="button" onclick="sortContacts('company')" class="flex h-full flex-1 items-center justify-between gap-4 text-left outline-none hover:text-foreground">
+                        <span>Empresa</span>
+                        <i data-lucide="arrow-up-down" class="size-3.5 opacity-0 group-hover/column:opacity-100 transition-opacity"></i>
+                      </button>
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody id="contacts-table-body" class="divide-y divide-border">
+                <!-- Filas dinámicas inyectadas aquí -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- VISTA 2: DIRECTORIO DE EMPRESAS -->
+        <div id="view-companies" class="hidden p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <!-- Tarjetas de empresas inyectadas aquí -->
+        </div>
+
+        <!-- VISTA 3: TABLERO KANBAN DE OPORTUNIDADES -->
+        <div id="view-opportunities" class="hidden p-6 h-full overflow-x-auto">
+          <div id="opportunities-board" class="flex gap-4 min-w-max h-full">
+            <!-- Columnas Kanban inyectadas aquí -->
+          </div>
+        </div>
+
+        <!-- VISTA 4: LISTA DE TAREAS -->
+        <div id="view-tasks" class="hidden p-6 max-w-4xl mx-auto space-y-4">
+          <!-- Lista de tareas inyectada aquí -->
+        </div>
+
+      </div>
+
+      <!-- Panel Lateral de Detalles del Registro -->
+      <aside id="detail-overlay" class="fixed md:absolute inset-y-0 right-0 z-30 w-full max-w-lg bg-background border-l border-border shadow-2xl transform translate-x-full transition-transform duration-200 flex flex-col">
+        <div class="flex items-center justify-between px-5 py-3 border-b border-border">
+          <div class="flex items-center gap-2 text-xs text-muted-foreground">
+            <i data-lucide="contact" class="size-4"></i>
+            <span>Ficha del Contacto</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <button id="drawer-edit-btn" class="inline-flex size-7 items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground" title="Editar contacto">
+              <i data-lucide="pencil" class="size-3.5"></i>
+            </button>
+            <button id="drawer-delete-btn" class="inline-flex size-7 items-center justify-center rounded hover:bg-red-50 text-muted-foreground hover:text-red-600" title="Eliminar contacto">
+              <i data-lucide="trash-2" class="size-3.5"></i>
+            </button>
+            <div class="w-px h-4 bg-border mx-1"></div>
+            <button onclick="closeDetailDrawer()" class="inline-flex size-7 items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground">
+              <i data-lucide="x" class="size-4"></i>
+            </button>
+          </div>
+        </div>
+        <div id="detail-overlay-body" class="p-6 overflow-y-auto flex-1 space-y-6">
+          <!-- Contenido dinámico -->
+        </div>
+      </aside>
+
+    </main>
+  </div>
+
+  <!-- MODAL 1: CREAR / EDITAR CONTACTO -->
+  <div id="contact-modal" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px] hidden items-center justify-center p-4">
+    <div class="bg-background border border-border rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-3.5 border-b border-border">
+        <h3 id="contact-modal-title" class="text-sm font-semibold">Crear contacto</h3>
+        <button onclick="closeContactModal()" class="text-muted-foreground hover:text-foreground">
+          <i data-lucide="x" class="size-4"></i>
+        </button>
+      </div>
+      <form id="contact-form" onsubmit="submitContactForm(event)" class="p-5 space-y-4">
+        <input type="hidden" id="form-contact-id">
+        <div>
+          <label class="block text-xs font-medium text-muted-foreground mb-1">Nombre completo *</label>
+          <input type="text" id="form-contact-name" required placeholder="Ej. Priya Raman" class="w-full h-8 px-3 rounded-md border border-border text-sm outline-none focus:border-zinc-900">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-muted-foreground mb-1">Correo corporativo *</label>
+          <input type="email" id="form-contact-email" required placeholder="priya.raman@lumenfield.io" class="w-full h-8 px-3 rounded-md border border-border text-sm outline-none focus:border-zinc-900">
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-muted-foreground mb-1">Teléfono *</label>
+            <input type="text" id="form-contact-phone" required placeholder="+57 300 555 1200" class="w-full h-8 px-3 rounded-md border border-border text-sm outline-none focus:border-zinc-900">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-muted-foreground mb-1">Cargo / Rol *</label>
+            <input type="text" id="form-contact-role" required placeholder="VP de Ingeniería" class="w-full h-8 px-3 rounded-md border border-border text-sm outline-none focus:border-zinc-900">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-muted-foreground mb-1">Notas y seguimiento</label>
+          <textarea id="form-contact-notes" rows="2" placeholder="Contexto, acuerdos recientes o detalles clave de la cuenta..." class="w-full p-2.5 rounded-md border border-border text-xs outline-none focus:border-zinc-900"></textarea>
+        </div>
+        <div class="flex justify-end gap-2 pt-3 border-t border-border">
+          <button type="button" onclick="closeContactModal()" class="h-8 px-3 rounded-md border border-border text-xs font-medium hover:bg-muted">Cancelar</button>
+          <button type="submit" class="h-8 px-4 rounded-md bg-zinc-900 text-white text-xs font-medium hover:bg-zinc-800">Guardar registro</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 2: CREAR OPORTUNIDAD -->
+  <div id="deal-modal" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px] hidden items-center justify-center p-4">
+    <div class="bg-background border border-border rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-3.5 border-b border-border">
+        <h3 class="text-sm font-semibold">Nueva Oportunidad</h3>
+        <button onclick="closeDealModal()" class="text-muted-foreground hover:text-foreground">
+          <i data-lucide="x" class="size-4"></i>
+        </button>
+      </div>
+      <form onsubmit="submitDealForm(event)" class="p-5 space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-muted-foreground mb-1">Título del Negocio *</label>
+          <input type="text" id="deal-title" required placeholder="Ej. Licencia Corporativa Anual" class="w-full h-8 px-3 rounded-md border border-border text-sm outline-none focus:border-zinc-900">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-muted-foreground mb-1">Valor Estimado (USD) *</label>
+            <input type="number" id="deal-value" required placeholder="48000" class="w-full h-8 px-3 rounded-md border border-border text-sm outline-none focus:border-zinc-900">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-muted-foreground mb-1">Etapa</label>
+            <select id="deal-stage" class="w-full h-8 px-2.5 rounded-md border border-border text-xs outline-none focus:border-zinc-900 bg-background">
+              <option value="Calificado">Calificado</option>
+              <option value="Propuesta">Propuesta</option>
+              <option value="Negociación">Negociación</option>
+              <option value="Ganado">Ganado</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-muted-foreground mb-1">Contacto Principal</label>
+          <select id="deal-contact" class="w-full h-8 px-2.5 rounded-md border border-border text-xs outline-none focus:border-zinc-900 bg-background"></select>
+        </div>
+        <div class="flex justify-end gap-2 pt-3 border-t border-border">
+          <button type="button" onclick="closeDealModal()" class="h-8 px-3 rounded-md border border-border text-xs font-medium hover:bg-muted">Cancelar</button>
+          <button type="submit" class="h-8 px-4 rounded-md bg-zinc-900 text-white text-xs font-medium hover:bg-zinc-800">Crear Oportunidad</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 3: CONFIGURACIÓN DE BASE DE DATOS (SUPABASE / LOCAL) -->
+  <div id="db-modal" class="fixed inset-0 z-50 bg-black/40 backdrop-blur-[1px] hidden items-center justify-center p-4">
+    <div class="bg-background border border-border rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-3.5 border-b border-border">
+        <div class="flex items-center gap-2">
+          <i data-lucide="database" class="size-4 text-zinc-900"></i>
+          <h3 class="text-sm font-semibold">Configuración de Base de Datos (Local y Nube Gratis)</h3>
+        </div>
+        <button onclick="closeDbModal()" class="text-muted-foreground hover:text-foreground">
+          <i data-lucide="x" class="size-4"></i>
+        </button>
+      </div>
+      <div class="p-5 space-y-4 text-xs">
+        <p class="text-muted-foreground leading-relaxed">
+          Actualmente el <strong>CRM RaaS Prototipo</strong> funciona sobre <strong>Local Storage</strong> para que puedas crear, editar y filtrar al instante. Para conectarlo a una base de datos PostgreSQL gratuita en <strong>Supabase</strong>, pega las credenciales de tu proyecto:
+        </p>
+
+        <div class="grid grid-cols-1 gap-3">
+          <div>
+            <label class="block font-medium text-foreground mb-1">URL del Proyecto en Supabase</label>
+            <input type="url" id="sb-url" placeholder="https://tu-proyecto.supabase.co" class="w-full h-8 px-3 rounded-md border border-border text-xs outline-none focus:border-zinc-900 font-mono">
+          </div>
+          <div>
+            <label class="block font-medium text-foreground mb-1">Anon Public Key de Supabase</label>
+            <input type="password" id="sb-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." class="w-full h-8 px-3 rounded-md border border-border text-xs outline-none focus:border-zinc-900 font-mono">
+          </div>
+        </div>
+
+        <div class="rounded-lg bg-zinc-950 text-zinc-200 p-3 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-semibold text-zinc-400">Script SQL Inicial (Ejecutar una vez en el SQL Editor de Supabase)</span>
+            <button type="button" onclick="copySqlSnippet()" class="text-[11px] bg-zinc-800 hover:bg-zinc-700 text-white px-2 py-0.5 rounded">Copiar SQL</button>
+          </div>
+          <pre id="sql-snippet" class="text-[10px] font-mono overflow-x-auto leading-relaxed text-emerald-400">create table if not exists contacts (
+  id uuid primary key,
+  name text not null,
+  email text not null,
+  phone text,
+  role text,
+  notes text,
+  created_at timestamptz default now()
+);
+alter table contacts enable row level security;
+create policy "Acceso CRM RaaS" on contacts for all using (true) with check (true);</pre>
+        </div>
+
+        <div class="flex items-center justify-between pt-3 border-t border-border">
+          <button type="button" onclick="disconnectSupabase()" class="h-8 px-3 rounded-md border border-border text-xs font-medium hover:bg-muted text-muted-foreground">
+            Usar Solo Modo Local
+          </button>
+          <div class="flex gap-2">
+            <button type="button" onclick="closeDbModal()" class="h-8 px-3 rounded-md border border-border text-xs font-medium hover:bg-muted">Cerrar</button>
+            <button type="button" onclick="saveSupabaseConnection()" class="h-8 px-4 rounded-md bg-zinc-900 text-white text-xs font-medium hover:bg-zinc-800">Conectar y Sincronizar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notificación Toast -->
+  <div id="toast" class="fixed bottom-4 right-4 z-50 hidden items-center gap-2 bg-zinc-900 text-white text-xs font-medium px-3.5 py-2.5 rounded-lg shadow-lg">
+    <span id="toast-text">Acción guardada</span>
+  </div>
+
+  <script>
+    // ============================================================================
+    // 1. LOS 20 CONTACTOS DE SEMILLA EN ESPAÑOL (Basados en tu HTML de referencia)
+    // ============================================================================
+    const SEED_CONTACTS = [
+      { id: "bc746029-7396-4c88-96dd-174b21f43ccd", name: "Priya Raman", email: "priya.raman@lumenfield.io", phone: "+1 (415) 555-1200", role: "VP de Ingeniería", notes: "Tomadora de decisión clave para la migración de plataforma del Q4." },
+      { id: "7bcb30c3-a77c-4469-8905-1285c857b343", name: "Daniel Okafor", email: "daniel.okafor@lumenfield.io", phone: "+1 (516) 555-1237", role: "Director de Datos", notes: "Evaluando conectores de almacén de datos y sincronización en tiempo real." },
+      { id: "8482180c-8401-43b2-b327-d3467c23f0eb", name: "Megan Holt", email: "megan.holt@brightpath.co", phone: "+1 (617) 555-1274", role: "Directora de Operaciones (COO)", notes: "Enfocada en eficiencia operativa en 4 oficinas regionales." },
+      { id: "ede7b7ad-552a-4876-86b0-09b94f0b8d3f", name: "Luis Ferreira", email: "luis.ferreira@brightpath.co", phone: "+1 (718) 555-1311", role: "Director de Operaciones", notes: "Gestiona la incorporación de proveedores y revisiones de SLA." },
+      { id: "b1ff35a7-26bd-4e7c-ac76-5724bbff9fea", name: "Sam Whitaker", email: "sam.whitaker@quarrylabs.dev", phone: "+1 (819) 555-1348", role: "CTO y Cofundador", notes: "Interesado en webhooks de API y herramientas para desarrolladores." },
+      { id: "1af7c8f9-bb7c-4726-bc9d-34e7a059a214", name: "Hannah Kim", email: "hannah.kim@halcyonhealth.com", phone: "+1 (415) 555-1385", role: "Directora Médica", notes: "Requiere flujos de trabajo con cumplimiento normativo de salud." },
+      { id: "3b756490-0562-4536-ab22-ccc8fc0f428e", name: "Marcus Bell", email: "marcus.bell@halcyonhealth.com", phone: "+1 (516) 555-1422", role: "Director de TI", notes: "Supervisando SSO y auditoría de seguridad para Halcyon Health." },
+      { id: "29c2d992-c4cf-4dbc-939d-c1fb6d3f73f0", name: "Elena Petrova", email: "elena.petrova@tidewater.finance", phone: "+1 (617) 555-1459", role: "Directora Financiera (CFO)", notes: "Aprueba contratos corporativos anuales multi-usuario." },
+      { id: "5a782d76-db12-450a-a1b0-e276127538b4", name: "Jordan Lee", email: "jordan.lee@orbitline.ai", phone: "+1 (718) 555-1496", role: "Jefe de Plataforma", notes: "Escalando infraestructura de IA; cuenta de alto crecimiento." },
+      { id: "b68eaf2e-be1f-428b-8c60-968f0f12cd38", name: "Aisha Mensah", email: "aisha.mensah@orbitline.ai", phone: "+1 (819) 555-1533", role: "VP de Producto", notes: "Liderando la integración de hoja de ruta con CRM RaaS." },
+      { id: "fa85800e-9ae2-48f0-a660-ba59756ed317", name: "Tom Gallagher", email: "tom.gallagher@cedarstone.com", phone: "+1 (415) 555-1570", role: "SVP Digital", notes: "Patrocinador ejecutivo de la iniciativa de transformación digital." },
+      { id: "34b0932a-e3ff-4dbf-9eb9-e7aeef83174e", name: "Rachel Stein", email: "rachel.stein@cedarstone.com", phone: "+1 (516) 555-1607", role: "Líder de Compras", notes: "Punto de contacto principal para revisión legal y contratos." },
+      { id: "9b8e2a95-aa29-4eb7-b42c-5f91004b253f", name: "Victor Alvarez", email: "victor.alvarez@kestrelsec.com", phone: "+1 (617) 555-1644", role: "Director de Seguridad (CISO)", notes: "Completó la revisión de seguridad SOC2 el mes pasado." },
+      { id: "ff3f2a24-cd79-4b78-a023-47982c0bec53", name: "Nora Lindqvist", email: "nora.lindqvist@northbeam.studio", phone: "+1 (718) 555-1681", role: "Fundadora", notes: "Socia de diseño desde la fase beta inicial." },
+      { id: "4c940b78-4f8a-4d8c-aa2c-7e11fa229ad1", name: "Grace Chen", email: "grace.chen@pinegrove.edu", phone: "+1 (819) 555-1718", role: "Directora de Aprendizaje", notes: "Explorando implementación en todo el campus." },
+      { id: "e2e9bce0-bb4b-4ad5-b74b-205b9d318651", name: "Owen Patel", email: "owen.patel@vantagefreight.com", phone: "+1 (415) 555-1755", role: "VP de Cadena de Suministro", notes: "Seguimiento de automatización logística global." },
+      { id: "f7de8c11-5297-4280-86cd-aedc066640ef", name: "Isabel Moreno", email: "isabel.moreno@silverleaf.energy", phone: "+1 (516) 555-1792", role: "Directora de Alianzas", notes: "Conversaciones sobre co-marketing y canal de socios." },
+      { id: "f3da5896-d1bd-4afe-a3b4-a0f5274d8a8c", name: "Chris Novak", email: "chris.novak@meridianpayroll.com", phone: "+1 (617) 555-1829", role: "Gerente de RevOps", notes: "Gestionando la limpieza del CRM y reportes de ventas." },
+      { id: "78e3a449-4d49-4bd0-9977-12eaaa89bf11", name: "Lena Fischer", email: "lena.fischer@meridianpayroll.com", phone: "+1 (718) 555-1866", role: "Directora General (CEO)", notes: "Patrocinadora ejecutiva en Meridian Payroll." },
+      { id: "8ab1c835-6ce7-41b9-90b8-01b17b292d96", name: "Ethan Brooks", email: "ethan.brooks@kestrelsec.com", phone: "+1 (819) 555-1903", role: "Ingeniero de Seguridad", notes: "Evaluador técnico de permisos y tokens de API." }
+    ];
+
+    const SEED_DEALS = [
+      { id: "d-1", title: "Despliegue Corporativo Lumenfield", value: 64000, stage: "Negociación", contactId: "bc746029-7396-4c88-96dd-174b21f43ccd" },
+      { id: "d-2", title: "Expansión Plataforma IA Orbitline", value: 48500, stage: "Propuesta", contactId: "5a782d76-db12-450a-a1b0-e276127538b4" },
+      { id: "d-3", title: "Suite de Cumplimiento Halcyon Health", value: 82000, stage: "Calificado", contactId: "1af7c8f9-bb7c-4726-bc9d-34e7a059a214" },
+      { id: "d-4", title: "Automatización RevOps Meridian", value: 36000, stage: "Ganado", contactId: "78e3a449-4d49-4bd0-9977-12eaaa89bf11" },
+      { id: "d-5", title: "Módulo Auditoría Kestrel Security", value: 29000, stage: "Propuesta", contactId: "9b8e2a95-aa29-4eb7-b42c-5f91004b253f" }
+    ];
+
+    const SEED_TASKS = [
+      { id: "t-1", text: "Enviar informe SOC2 a Victor Alvarez en KestrelSec", due: "Hoy", done: false, contactName: "Victor Alvarez" },
+      { id: "t-2", text: "Revisar cláusulas del contrato con Rachel Stein (Cedarstone)", due: "Mañana", done: false, contactName: "Rachel Stein" },
+      { id: "t-3", text: "Preparar demo de sincronización para Priya y Daniel", due: "16 Oct", done: false, contactName: "Priya Raman" },
+      { id: "t-4", text: "Llamada de lanzamiento con Lena Fischer", due: "Completada", done: true, contactName: "Lena Fischer" }
+    ];
+
+    // ============================================================================
+    // 2. SERVICIO HÍBRIDO DE DATOS (LocalStorage + Sincronización Supabase)
+    // ============================================================================
+    const KEYS = {
+      CONTACTS: 'raas_crm_contacts_es_v1',
+      DEALS: 'raas_crm_deals_es_v1',
+      TASKS: 'raas_crm_tasks_es_v1',
+      SB_CONFIG: 'raas_crm_supabase_cfg'
+    };
+
+    let supabaseClient = null;
+
+    function initSupabaseFromConfig() {
+      try {
+        const raw = localStorage.getItem(KEYS.SB_CONFIG);
+        if (!raw) return;
+        const cfg = JSON.parse(raw);
+        if (cfg.url && cfg.key && window.supabase) {
+          supabaseClient = window.supabase.createClient(cfg.url, cfg.key);
+          updateDbIndicator(true, cfg.url);
+        }
+      } catch (err) {
+        console.warn("Supabase omitido:", err);
+      }
+    }
+
+    function updateDbIndicator(isCloud, url = '') {
+      const dot = document.getElementById('db-status-dot');
+      const title = document.getElementById('db-status-title');
+      const sub = document.getElementById('db-status-sub');
+      if (isCloud) {
+        dot.className = "size-2 rounded-full bg-blue-600 shrink-0";
+        title.textContent = "Supabase Cloud DB";
+        sub.textContent = url.replace('https://', '');
+      } else {
+        dot.className = "size-2 rounded-full bg-emerald-500 shrink-0";
+        title.textContent = "Base de Datos Local";
+        sub.textContent = "Clic para conectar Supabase";
+      }
+    }
+
+    const DataService = {
+      async getContacts() {
+        if (supabaseClient) {
+          const { data, error } = await supabaseClient.from('contacts').select('*').order('name', { ascending: true });
+          if (!error && data && data.length > 0) {
+            localStorage.setItem(KEYS.CONTACTS, JSON.stringify(data));
+            return data;
+          }
+        }
+        const local = localStorage.getItem(KEYS.CONTACTS);
+        if (!local) {
+          localStorage.setItem(KEYS.CONTACTS, JSON.stringify(SEED_CONTACTS));
+          return [...SEED_CONTACTS];
+        }
+        return JSON.parse(local);
+      },
+
+      async saveContact(contact) {
+        const list = await this.getContacts();
+        const existingIndex = list.findIndex(c => c.id === contact.id);
+        if (existingIndex >= 0) {
+          list[existingIndex] = { ...list[existingIndex], ...contact };
+        } else {
+          contact.id = contact.id || crypto.randomUUID();
+          list.unshift(contact);
+        }
+        localStorage.setItem(KEYS.CONTACTS, JSON.stringify(list));
+
+        if (supabaseClient) {
+          await supabaseClient.from('contacts').upsert(contact);
+        }
+        return contact;
+      },
+
+      async deleteContact(id) {
+        const list = (await this.getContacts()).filter(c => c.id !== id);
+        localStorage.setItem(KEYS.CONTACTS, JSON.stringify(list));
+        if (supabaseClient) {
+          await supabaseClient.from('contacts').delete().eq('id', id);
+        }
+      },
+
+      getDeals() {
+        const raw = localStorage.getItem(KEYS.DEALS);
+        if (!raw) {
+          localStorage.setItem(KEYS.DEALS, JSON.stringify(SEED_DEALS));
+          return [...SEED_DEALS];
+        }
+        return JSON.parse(raw);
+      },
+
+      saveDeals(deals) {
+        localStorage.setItem(KEYS.DEALS, JSON.stringify(deals));
+      },
+
+      getTasks() {
+        const raw = localStorage.getItem(KEYS.TASKS);
+        if (!raw) {
+          localStorage.setItem(KEYS.TASKS, JSON.stringify(SEED_TASKS));
+          return [...SEED_TASKS];
+        }
+        return JSON.parse(raw);
+      },
+
+      saveTasks(tasks) {
+        localStorage.setItem(KEYS.TASKS, JSON.stringify(tasks));
+      }
+    };
+
+    // ============================================================================
+    // 3. CONTROLADORES DE ESTADO E INTERFAZ
+    // ============================================================================
+    let state = {
+      currentView: 'contacts',
+      contacts: [],
+      deals: [],
+      tasks: [],
+      searchQuery: '',
+      roleFilter: '',
+      smartFilter: 'ALL',
+      sortField: 'name',
+      sortAsc: true,
+      selectedContactId: null,
+      visibleCols: { email: true, phone: true, role: true, company: true }
+    };
+
+    function extractCompanyFromEmail(email) {
+      if (!email || !email.includes('@')) return 'Independiente';
+      const domain = email.split('@')[1];
+      const namePart = domain.split('.')[0];
+      return namePart.charAt(0).toUpperCase() + namePart.slice(1);
+    }
+
+    async function loadWorkspace() {
+      initSupabaseFromConfig();
+      state.contacts = await DataService.getContacts();
+      state.deals = DataService.getDeals();
+      state.tasks = DataService.getTasks();
+      renderAll();
+    }
+
+    function renderAll() {
+      updateSidebarBadges();
+      updateActiveNavStyles();
+      populateRoleFilterMenu();
+      renderContactsView();
+      renderCompaniesView();
+      renderOpportunitiesView();
+      renderTasksView();
+      lucide.createIcons();
+    }
+
+    function updateSidebarBadges() {
+      document.getElementById('badge-contacts').textContent = state.contacts.length;
+      const uniqueDomains = new Set(state.contacts.map(c => c.email.split('@')[1])).size;
+      document.getElementById('badge-companies').textContent = uniqueDomains;
+      document.getElementById('badge-opportunities').textContent = state.deals.length;
+      document.getElementById('badge-tasks').textContent = state.tasks.filter(t => !t.done).length;
+    }
+
+    function updateActiveNavStyles() {
+      const views = ['contacts', 'companies', 'opportunities', 'tasks'];
+      views.forEach(v => {
+        const btn = document.getElementById(`nav-${v}`);
+        if (state.currentView === v) {
+          btn.className = "w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md bg-zinc-200/80 text-foreground font-medium transition-colors";
+        } else {
+          btn.className = "w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-muted-foreground hover:bg-zinc-200/40 hover:text-foreground font-medium transition-colors";
+        }
+      });
+    }
+
+    function getFilteredContacts() {
+      return state.contacts.filter(c => {
+        const company = extractCompanyFromEmail(c.email);
+        const q = state.searchQuery.toLowerCase();
+        const matchesQuery = !q ||
+          c.name.toLowerCase().includes(q) ||
+          c.email.toLowerCase().includes(q) ||
+          c.phone.toLowerCase().includes(q) ||
+          c.role.toLowerCase().includes(q) ||
+          company.toLowerCase().includes(q);
+
+        const matchesRole = !state.roleFilter || c.role === state.roleFilter;
+
+        let matchesSmart = true;
+        if (state.smartFilter === 'Directivos') {
+          matchesSmart = /(VP|CEO|CFO|COO|CTO|CISO|Director|Directora|Fundadora|SVP)/i.test(c.role);
+        } else if (state.smartFilter === 'Tecnología') {
+          matchesSmart = /(Ingeniería|Datos|Plataforma|Seguridad|CTO|CISO|TI|Digital|Ingeniero)/i.test(c.role);
+        }
+
+        return matchesQuery && matchesRole && matchesSmart;
+      }).sort((a, b) => {
+        const getVal = (item) => {
+          if (state.sortField === 'company') return extractCompanyFromEmail(item.email).toLowerCase();
+          return (item[state.sortField] || '').toLowerCase();
+        };
+        const valA = getVal(a);
+        const valB = getVal(b);
+        if (valA < valB) return state.sortAsc ? -1 : 1;
+        if (valA > valB) return state.sortAsc ? 1 : -1;
+        return 0;
+      });
+    }
+
+    function renderContactsView() {
+      const tbody = document.getElementById('contacts-table-body');
+      const filtered = getFilteredContacts();
+
+      document.getElementById('th-email').style.display = state.visibleCols.email ? '' : 'none';
+      document.getElementById('th-phone').style.display = state.visibleCols.phone ? '' : 'none';
+      document.getElementById('th-role').style.display = state.visibleCols.role ? '' : 'none';
+      document.getElementById('th-company').style.display = state.visibleCols.company ? '' : 'none';
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" class="py-12 text-center text-muted-foreground text-xs">
+              No se encontraron contactos que coincidan con la búsqueda. Prueba limpiar los filtros o crea uno nuevo.
+            </td>
+          </tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(c => {
+        const companyName = extractCompanyFromEmail(c.email);
+        const domain = c.email.split('@')[1] || '';
+        const isSelected = state.selectedContactId === c.id;
+
+        return `
+          <tr class="border-b border-border ${isSelected ? 'bg-muted' : 'bg-background'} transition-colors hover:bg-zinc-100/70 group/row">
+            <!-- Columna Nombre fija con botones de acción en hover -->
+            <td class="relative h-11 px-4 py-2 align-middle whitespace-nowrap group/name-cell min-w-56 pr-2">
+              <div class="flex items-center gap-3">
+                <button type="button" onclick="openDetailDrawer('${c.id}')" class="font-medium text-foreground hover:underline focus-visible:outline-none text-left">
+                  ${escapeHtml(c.name)}
+                </button>
+                <div class="ml-auto flex shrink-0 items-center gap-1">
+                  <button type="button" onclick="openDetailDrawer('${c.id}')" title="Ver ficha completa" class="inline-flex size-7 items-center justify-center rounded-md hover:bg-zinc-200/70 text-muted-foreground hover:text-foreground opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity">
+                    <i data-lucide="arrow-up-right" class="size-4"></i>
+                  </button>
+                  <button type="button" onclick="openEditContact('${c.id}')" title="Edición rápida" class="inline-flex size-7 items-center justify-center rounded-md hover:bg-zinc-200/70 text-muted-foreground hover:text-foreground opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-opacity">
+                    <i data-lucide="ellipsis" class="size-4"></i>
+                  </button>
+                </div>
+              </div>
+            </td>
+
+            <!-- Columna Correo -->
+            <td style="display: ${state.visibleCols.email ? '' : 'none'}" class="relative h-11 px-4 py-2 align-middle whitespace-nowrap">
+              <a class="text-muted-foreground hover:text-foreground hover:underline" href="mailto:${escapeHtml(c.email)}">
+                ${escapeHtml(c.email)}
+              </a>
+            </td>
+
+            <!-- Columna Teléfono -->
+            <td style="display: ${state.visibleCols.phone ? '' : 'none'}" class="relative h-11 px-4 py-2 align-middle whitespace-nowrap">
+              <span class="text-muted-foreground">${escapeHtml(c.phone)}</span>
+            </td>
+
+            <!-- Columna Cargo -->
+            <td style="display: ${state.visibleCols.role ? '' : 'none'}" class="relative h-11 px-4 py-2 align-middle whitespace-nowrap">
+              <span class="text-muted-foreground">${escapeHtml(c.role)}</span>
+            </td>
+
+            <!-- Columna Empresa -->
+            <td style="display: ${state.visibleCols.company ? '' : 'none'}" class="relative h-11 px-4 py-2 align-middle whitespace-nowrap">
+              <button onclick="filterByCompanyDomain('${escapeHtml(domain)}')" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-muted/80 hover:bg-zinc-200/80 text-xs font-medium text-zinc-700 transition-colors">
+                <span class="size-1.5 rounded-full bg-zinc-400"></span>
+                ${escapeHtml(companyName)}
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderCompaniesView() {
+      const container = document.getElementById('view-companies');
+      const map = {};
+      state.contacts.forEach(c => {
+        const domain = c.email.split('@')[1] || 'independiente.org';
+        if (!map[domain]) {
+          map[domain] = {
+            name: extractCompanyFromEmail(c.email),
+            domain,
+            contacts: []
+          };
+        }
+        map[domain].contacts.push(c);
+      });
+
+      const companies = Object.values(map).filter(comp => {
+        const q = state.searchQuery.toLowerCase();
+        return !q || comp.name.toLowerCase().includes(q) || comp.domain.toLowerCase().includes(q);
+      });
+
+      container.innerHTML = companies.map(comp => `
+        <div class="rounded-xl border border-border bg-background p-4 shadow-2xs hover:border-zinc-300 transition-all flex flex-col justify-between gap-4">
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div class="size-9 rounded-lg bg-zinc-100 border border-border flex items-center justify-center font-semibold text-sm text-zinc-800">
+                ${comp.name.slice(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <h3 class="text-sm font-semibold text-foreground">${escapeHtml(comp.name)}</h3>
+                <p class="text-xs text-muted-foreground">${escapeHtml(comp.domain)}</p>
+              </div>
+            </div>
+            <span class="text-[11px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+              ${comp.contacts.length} ${comp.contacts.length === 1 ? 'contacto' : 'contactos'}
+            </span>
+          </div>
+
+          <div class="space-y-1.5 pt-2 border-t border-border">
+            ${comp.contacts.map(person => `
+              <button onclick="switchView('contacts'); openDetailDrawer('${person.id}')" class="w-full flex items-center justify-between text-xs py-1 px-1.5 rounded hover:bg-muted text-left">
+                <span class="font-medium truncate">${escapeHtml(person.name)}</span>
+                <span class="text-muted-foreground text-[11px] truncate ml-2">${escapeHtml(person.role)}</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderOpportunitiesView() {
+      const board = document.getElementById('opportunities-board');
+      const stages = ['Calificado', 'Propuesta', 'Negociación', 'Ganado'];
+
+      board.innerHTML = stages.map(stage => {
+        const stageDeals = state.deals.filter(d => d.stage === stage && (!state.searchQuery || d.title.toLowerCase().includes(state.searchQuery.toLowerCase())));
+        const totalVal = stageDeals.reduce((acc, d) => acc + Number(d.value || 0), 0);
+
+        return `
+          <div class="w-72 shrink-0 flex flex-col bg-muted/50 rounded-xl border border-border p-3 max-h-full">
+            <div class="flex items-center justify-between px-1 pb-2.5 border-b border-border">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-semibold">${stage}</span>
+                <span class="text-[11px] text-muted-foreground bg-background px-1.5 py-0.2 rounded border border-border">${stageDeals.length}</span>
+              </div>
+              <span class="text-xs font-medium text-muted-foreground">$${totalVal.toLocaleString()}</span>
+            </div>
+
+            <div class="space-y-2.5 mt-3 overflow-y-auto flex-1">
+              ${stageDeals.map(deal => {
+                const contact = state.contacts.find(c => c.id === deal.contactId);
+                return `
+                  <div class="bg-background rounded-lg border border-border p-3 shadow-2xs space-y-2 hover:border-zinc-300 transition-colors">
+                    <div class="flex items-start justify-between gap-2">
+                      <h4 class="text-xs font-semibold leading-snug">${escapeHtml(deal.title)}</h4>
+                      <button onclick="deleteDeal('${deal.id}')" class="text-muted-foreground hover:text-red-500">
+                        <i data-lucide="x" class="size-3.5"></i>
+                      </button>
+                    </div>
+                    <div class="text-sm font-semibold text-zinc-900">$${Number(deal.value).toLocaleString()} USD</div>
+                    <div class="flex items-center justify-between pt-2 border-t border-zinc-100 text-[11px] text-muted-foreground">
+                      <span class="truncate">${contact ? escapeHtml(contact.name) : 'Sin asignar'}</span>
+                      <select onchange="moveDealStage('${deal.id}', this.value)" class="bg-muted rounded px-1.5 py-0.5 text-[10px] font-medium text-foreground outline-none">
+                        ${stages.map(s => `<option value="${s}" ${s === deal.stage ? 'selected' : ''}>${s}</option>`).join('')}
+                      </select>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderTasksView() {
+      const container = document.getElementById('view-tasks');
+      container.innerHTML = `
+        <div class="flex items-center gap-2 bg-background border border-border rounded-lg p-2 shadow-2xs">
+          <input id="new-task-input" type="text" placeholder="Escribe una nueva tarea de seguimiento..." class="flex-1 text-xs px-2 outline-none" onkeydown="if(event.key==='Enter') addNewTask()">
+          <button onclick="addNewTask()" class="h-7 px-3 rounded bg-zinc-900 text-white text-xs font-medium hover:bg-zinc-800">Añadir Tarea</button>
+        </div>
+        <div class="divide-y divide-border border border-border rounded-xl bg-background overflow-hidden">
+          ${state.tasks.map(t => `
+            <div class="flex items-center justify-between px-4 py-3 text-xs hover:bg-muted/40 transition-colors">
+              <label class="flex items-center gap-3 cursor-pointer flex-1">
+                <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask('${t.id}')" class="accent-zinc-900 rounded size-4">
+                <span class="${t.done ? 'line-through text-muted-foreground' : 'font-medium text-foreground'}">${escapeHtml(t.text)}</span>
+              </label>
+              <div class="flex items-center gap-3">
+                <span class="px-2 py-0.5 rounded bg-muted text-muted-foreground text-[11px]">${escapeHtml(t.contactName || 'General')}</span>
+                <span class="text-muted-foreground text-[11px]">${escapeHtml(t.due)}</span>
+                <button onclick="removeTask('${t.id}')" class="text-muted-foreground hover:text-red-600">
+                  <i data-lucide="trash-2" class="size-3.5"></i>
+                </button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    // ============================================================================
+    // 4. INTERACCIONES, DRAWER, ORDENAMIENTO Y MODALES
+    // ============================================================================
+    function switchView(viewName) {
+      state.currentView = viewName;
+      ['contacts', 'companies', 'opportunities', 'tasks'].forEach(v => {
+        document.getElementById(`view-${v}`).classList.toggle('hidden', v !== viewName);
+      });
+
+      const titles = {
+        contacts: { title: 'Contactos', icon: 'users', btn: 'Crear contacto' },
+        companies: { title: 'Empresas', icon: 'building-2', btn: 'Crear contacto' },
+        opportunities: { title: 'Oportunidades', icon: 'kanban', btn: 'Nueva oportunidad' },
+        tasks: { title: 'Tareas', icon: 'check-square', btn: 'Crear contacto' }
+      };
+
+      const cfg = titles[viewName];
+      document.getElementById('header-title').textContent = cfg.title;
+      document.getElementById('primary-action-label').textContent = cfg.btn;
+      document.title = `${cfg.title} | CRM RaaS Prototipo`;
+      closeDetailDrawer();
+      renderAll();
+    }
+
+    function openDetailDrawer(contactId) {
+      const c = state.contacts.find(item => item.id === contactId);
+      if (!c) return;
+      state.selectedContactId = c.id;
+      renderContactsView();
+
+      const company = extractCompanyFromEmail(c.email);
+      const domain = c.email.split('@')[1] || '';
+      const initials = c.name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
+      const relatedDeals = state.deals.filter(d => d.contactId === c.id);
+
+      document.getElementById('drawer-edit-btn').onclick = () => openEditContact(c.id);
+      document.getElementById('drawer-delete-btn').onclick = () => confirmDeleteContact(c.id);
+
+      document.getElementById('detail-overlay-body').innerHTML = `
+        <div class="flex items-center gap-4">
+          <div class="size-12 rounded-xl bg-zinc-900 text-white flex items-center justify-center text-base font-semibold shrink-0">
+            ${initials}
+          </div>
+          <div class="min-w-0">
+            <h2 class="text-base font-semibold text-foreground truncate">${escapeHtml(c.name)}</h2>
+            <p class="text-xs text-muted-foreground truncate">${escapeHtml(c.role)} en <span class="text-foreground font-medium">${escapeHtml(company)}</span></p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 pt-2">
+          <a href="mailto:${escapeHtml(c.email)}" class="flex items-center justify-center gap-1.5 h-8 rounded-md border border-border text-xs font-medium hover:bg-muted">
+            <i data-lucide="mail" class="size-3.5"></i>
+            Enviar Correo
+          </a>
+          <button onclick="openEditContact('${c.id}')" class="flex items-center justify-center gap-1.5 h-8 rounded-md border border-border text-xs font-medium hover:bg-muted">
+            <i data-lucide="pencil" class="size-3.5"></i>
+            Editar Datos
+          </button>
+        </div>
+
+        <div class="space-y-2.5 pt-4 border-t border-border text-xs">
+          <div class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Atributos del Registro</div>
+          <div class="flex justify-between py-1.5 border-b border-zinc-100">
+            <span class="text-muted-foreground">ID Único (UUID)</span>
+            <span class="font-mono text-[11px] text-zinc-600">${escapeHtml(c.id.slice(0, 18))}...</span>
+          </div>
+          <div class="flex justify-between py-1.5 border-b border-zinc-100">
+            <span class="text-muted-foreground">Correo</span>
+            <span class="font-medium">${escapeHtml(c.email)}</span>
+          </div>
+          <div class="flex justify-between py-1.5 border-b border-zinc-100">
+            <span class="text-muted-foreground">Teléfono</span>
+            <span class="font-medium">${escapeHtml(c.phone)}</span>
+          </div>
+          <div class="flex justify-between py-1.5 border-b border-zinc-100">
+            <span class="text-muted-foreground">Cargo</span>
+            <span class="font-medium">${escapeHtml(c.role)}</span>
+          </div>
+          <div class="flex justify-between py-1.5 border-b border-zinc-100">
+            <span class="text-muted-foreground">Dominio Empresa</span>
+            <span class="font-medium">${escapeHtml(domain)}</span>
+          </div>
+        </div>
+
+        <div class="space-y-2 pt-2">
+          <div class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Notas y Contexto</div>
+          <div class="p-3 rounded-lg bg-muted/60 border border-border text-xs text-foreground leading-relaxed">
+            ${c.notes ? escapeHtml(c.notes) : 'Sin notas registradas. Haz clic en Editar para añadir contexto comercial.'}
+          </div>
+        </div>
+
+        <div class="space-y-2 pt-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Oportunidades (${relatedDeals.length})</span>
+            <button onclick="openDealModal('${c.id}')" class="text-xs text-zinc-900 font-medium hover:underline">+ Añadir Negocio</button>
+          </div>
+          <div class="space-y-2">
+            ${relatedDeals.length === 0 ? `<p class="text-xs text-muted-foreground">No hay negocios vinculados a este contacto.</p>` :
+              relatedDeals.map(d => `
+                <div class="flex items-center justify-between p-2.5 rounded-lg border border-border text-xs">
+                  <div>
+                    <p class="font-medium">${escapeHtml(d.title)}</p>
+                    <p class="text-[11px] text-muted-foreground">${escapeHtml(d.stage)}</p>
+                  </div>
+                  <span class="font-semibold">$${Number(d.value).toLocaleString()}</span>
+                </div>
+              `).join('')
+            }
+          </div>
+        </div>
+      `;
+
+      document.getElementById('detail-overlay').classList.remove('translate-x-full');
+      lucide.createIcons();
+    }
+
+    function closeDetailDrawer() {
+      state.selectedContactId = null;
+      document.getElementById('detail-overlay').classList.add('translate-x-full');
+      renderContactsView();
+      lucide.createIcons();
+    }
+
+    function openPrimaryModal() {
+      if (state.currentView === 'opportunities') {
+        openDealModal();
+      } else {
+        openContactModal();
+      }
+    }
+
+    function openContactModal(contact = null) {
+      document.getElementById('contact-modal-title').textContent = contact ? 'Editar contacto' : 'Crear contacto';
+      document.getElementById('form-contact-id').value = contact ? contact.id : '';
+      document.getElementById('form-contact-name').value = contact ? contact.name : '';
+      document.getElementById('form-contact-email').value = contact ? contact.email : '';
+      document.getElementById('form-contact-phone').value = contact ? contact.phone : '';
+      document.getElementById('form-contact-role').value = contact ? contact.role : '';
+      document.getElementById('form-contact-notes').value = contact ? (contact.notes || '') : '';
+
+      const m = document.getElementById('contact-modal');
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+    }
+
+    function closeContactModal() {
+      const m = document.getElementById('contact-modal');
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+    }
+
+    function openEditContact(id) {
+      const c = state.contacts.find(x => x.id === id);
+      if (c) openContactModal(c);
+    }
+
+    async function submitContactForm(e) {
+      e.preventDefault();
+      const id = document.getElementById('form-contact-id').value;
+      const contactData = {
+        id: id || crypto.randomUUID(),
+        name: document.getElementById('form-contact-name').value.trim(),
+        email: document.getElementById('form-contact-email').value.trim(),
+        phone: document.getElementById('form-contact-phone').value.trim(),
+        role: document.getElementById('form-contact-role').value.trim(),
+        notes: document.getElementById('form-contact-notes').value.trim()
+      };
+
+      await DataService.saveContact(contactData);
+      state.contacts = await DataService.getContacts();
+      closeContactModal();
+      renderAll();
+      if (state.selectedContactId === contactData.id) {
+        openDetailDrawer(contactData.id);
+      }
+      showToast(id ? "Contacto actualizado" : "Contacto creado");
+    }
+
+    async function confirmDeleteContact(id) {
+      await DataService.deleteContact(id);
+      state.contacts = await DataService.getContacts();
+      closeDetailDrawer();
+      renderAll();
+      showToast("Contacto eliminado");
+    }
+
+    // Manejadores de Oportunidades y Tareas
+    function openDealModal(preselectedContactId = '') {
+      const select = document.getElementById('deal-contact');
+      select.innerHTML = state.contacts.map(c =>
+        `<option value="${c.id}" ${c.id === preselectedContactId ? 'selected' : ''}>${escapeHtml(c.name)} (${escapeHtml(extractCompanyFromEmail(c.email))})</option>`
+      ).join('');
+      document.getElementById('deal-title').value = '';
+      document.getElementById('deal-value').value = '';
+      const m = document.getElementById('deal-modal');
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+    }
+
+    function closeDealModal() {
+      const m = document.getElementById('deal-modal');
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+    }
+
+    function submitDealForm(e) {
+      e.preventDefault();
+      const newDeal = {
+        id: 'd-' + Date.now(),
+        title: document.getElementById('deal-title').value.trim(),
+        value: Number(document.getElementById('deal-value').value),
+        stage: document.getElementById('deal-stage').value,
+        contactId: document.getElementById('deal-contact').value
+      };
+      state.deals.unshift(newDeal);
+      DataService.saveDeals(state.deals);
+      closeDealModal();
+      renderAll();
+      showToast("Oportunidad creada");
+    }
+
+    function moveDealStage(dealId, newStage) {
+      const d = state.deals.find(x => x.id === dealId);
+      if (d) {
+        d.stage = newStage;
+        DataService.saveDeals(state.deals);
+        renderAll();
+        showToast(`Movido a ${newStage}`);
+      }
+    }
+
+    function deleteDeal(dealId) {
+      state.deals = state.deals.filter(x => x.id !== dealId);
+      DataService.saveDeals(state.deals);
+      renderAll();
+      showToast("Oportunidad eliminada");
+    }
+
+    function addNewTask() {
+      const input = document.getElementById('new-task-input');
+      if (!input.value.trim()) return;
+      state.tasks.unshift({
+        id: 't-' + Date.now(),
+        text: input.value.trim(),
+        due: 'Próxima',
+        done: false,
+        contactName: 'CRM RaaS'
+      });
+      DataService.saveTasks(state.tasks);
+      input.value = '';
+      renderAll();
+      showToast("Tarea añadida");
+    }
+
+    function toggleTask(taskId) {
+      const t = state.tasks.find(x => x.id === taskId);
+      if (t) {
+        t.done = !t.done;
+        DataService.saveTasks(state.tasks);
+        renderAll();
+      }
+    }
+
+    function removeTask(taskId) {
+      state.tasks = state.tasks.filter(x => x.id !== taskId);
+      DataService.saveTasks(state.tasks);
+      renderAll();
+    }
+
+    // Ordenamiento, Filtros y Búsqueda
+    function sortContacts(field) {
+      if (state.sortField === field) {
+        state.sortAsc = !state.sortAsc;
+      } else {
+        state.sortField = field;
+        state.sortAsc = true;
+      }
+      renderContactsView();
+      lucide.createIcons();
+    }
+
+    function handleSearchInput() {
+      const val = document.getElementById('global-search').value;
+      state.searchQuery = val;
+      document.getElementById('clear-search-btn').classList.toggle('hidden', !val);
+      renderAll();
+    }
+
+    function clearSearch() {
+      document.getElementById('global-search').value = '';
+      state.searchQuery = '';
+      document.getElementById('clear-search-btn').classList.add('hidden');
+      renderAll();
+    }
+
+    function filterByCompanyDomain(domain) {
+      document.getElementById('global-search').value = domain;
+      handleSearchInput();
+    }
+
+    function applyQuickFilter(type) {
+      state.smartFilter = type;
+      state.roleFilter = '';
+      document.getElementById('header-subtitle').textContent = type === 'ALL' ? '' : `• ${type}`;
+      switchView('contacts');
+    }
+
+    function populateRoleFilterMenu() {
+      const roles = [...new Set(state.contacts.map(c => c.role))].sort();
+      const list = document.getElementById('filter-options-list');
+      list.innerHTML = roles.map(r => `
+        <button onclick="setRoleFilter('${escapeHtml(r)}')" class="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center justify-between ${state.roleFilter === r ? 'font-semibold bg-muted/60' : ''}">
+          <span class="truncate">${escapeHtml(r)}</span>
+          ${state.roleFilter === r ? '<span class="size-1.5 rounded-full bg-zinc-900"></span>' : ''}
+        </button>
+      `).join('');
+      document.getElementById('active-filter-label').textContent = state.roleFilter ? `Cargo: ${state.roleFilter}` : 'Filtrar';
+    }
+
+    function setRoleFilter(role) {
+      state.roleFilter = role;
+      document.getElementById('filter-dropdown').classList.add('hidden');
+      renderAll();
+    }
+
+    function toggleFilterMenu() {
+      document.getElementById('filter-dropdown').classList.toggle('hidden');
+      document.getElementById('display-dropdown').classList.add('hidden');
+    }
+
+    function toggleDisplayMenu() {
+      document.getElementById('display-dropdown').classList.toggle('hidden');
+      document.getElementById('filter-dropdown').classList.add('hidden');
+    }
+
+    function toggleColumn(col, isVisible) {
+      state.visibleCols[col] = isVisible;
+      renderContactsView();
+      lucide.createIcons();
+    }
+
+    // Modal de Base de Datos y Utilidades
+    function openDbModal() {
+      const raw = localStorage.getItem(KEYS.SB_CONFIG);
+      if (raw) {
+        const cfg = JSON.parse(raw);
+        document.getElementById('sb-url').value = cfg.url || '';
+        document.getElementById('sb-key').value = cfg.key || '';
+      }
+      const m = document.getElementById('db-modal');
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+    }
+
+    function closeDbModal() {
+      const m = document.getElementById('db-modal');
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+    }
+
+    async function saveSupabaseConnection() {
+      const url = document.getElementById('sb-url').value.trim();
+      const key = document.getElementById('sb-key').value.trim();
+      if (!url || !key) {
+        showToast("Por favor ingresa la URL y la Anon Key");
+        return;
+      }
+      localStorage.setItem(KEYS.SB_CONFIG, JSON.stringify({ url, key }));
+      initSupabaseFromConfig();
+      if (supabaseClient) {
+        await supabaseClient.from('contacts').upsert(state.contacts);
+      }
+      closeDbModal();
+      await loadWorkspace();
+      showToast("Conectado y sincronizado con Supabase");
+    }
+
+    function disconnectSupabase() {
+      localStorage.removeItem(KEYS.SB_CONFIG);
+      supabaseClient = null;
+      updateDbIndicator(false);
+      closeDbModal();
+      showToast("Modo de almacenamiento local activado");
+    }
+
+    function copySqlSnippet() {
+      const sql = document.getElementById('sql-snippet').innerText;
+      const textarea = document.createElement('textarea');
+      textarea.value = sql;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      showToast("Script SQL copiado al portapapeles");
+    }
+
+    function exportWorkspaceJSON() {
+      const payload = {
+        workspace: "CRM RaaS Prototipo",
+        exportedAt: new Date().toISOString(),
+        contacts: state.contacts,
+        opportunities: state.deals,
+        tasks: state.tasks
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'crm-raas-prototipo-respaldo.json';
+      a.click();
+      showToast("Respaldo JSON descargado");
+    }
+
+    function resetFactoryData() {
+      localStorage.removeItem(KEYS.CONTACTS);
+      localStorage.removeItem(KEYS.DEALS);
+      localStorage.removeItem(KEYS.TASKS);
+      state.roleFilter = '';
+      state.smartFilter = 'ALL';
+      state.searchQuery = '';
+      document.getElementById('global-search').value = '';
+      closeDetailDrawer();
+      loadWorkspace();
+      showToast("Datos de fábrica restaurados (20 contactos)");
+    }
+
+    function toggleMobileSidebar() {
+      const sb = document.getElementById('app-sidebar');
+      const backdrop = document.getElementById('mobile-backdrop');
+      sb.classList.toggle('-translate-x-full');
+      backdrop.classList.toggle('hidden');
+    }
+
+    function focusGlobalSearch() {
+      document.getElementById('global-search').focus();
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      document.getElementById('toast-text').textContent = msg;
+      t.classList.remove('hidden');
+      t.classList.add('flex');
+      setTimeout(() => {
+        t.classList.add('hidden');
+        t.classList.remove('flex');
+      }, 2600);
+    }
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[m]);
+    }
+
+    // Atajo de teclado '/' para buscar
+    window.addEventListener('keydown', (e) => {
+      if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        focusGlobalSearch();
+      }
+      if (e.key === 'Escape') {
+        closeDetailDrawer();
+        closeContactModal();
+        closeDealModal();
+        closeDbModal();
+      }
+    });
+
+    window.onload = loadWorkspace;
+  </script>
+</body>
+</html>
